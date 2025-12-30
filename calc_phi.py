@@ -3,22 +3,28 @@ import numpy.linalg as la
 import math
 
 r"""
-# see C:\Users\moro-\OneDrive\ドキュメント\05_research_projects\
-#      13_hypothesis_for_FEP-IIT_integration\
-#      20251229_下書き_脳内ダイナミクスとしての概念と共通概念形成^L7自由エネルギー原理および統合情報理論による解釈.docx
-
+see 
+Barrett, Adam B., and Anil K. Seth. 2011. “Practical Measures of Integrated Information for Time-Series Data.” 
+PLoS Computational Biology 7 (1): e1001052.
 """
 
 
 def cycle_matrix(n, w):
+    """
+    create n x n cycle adjacency matrix with weight w
+    see fig.1
+    0 -> 1 -> 2 -> ... -> n-1 -> 0
+    """
     A = np.zeros((n, n))
     for i in range(n):
         A[(i+1) % n, i] = w  # i -> i+1
     return A
 
+
 def solve_stationary_cov_iter(A, sigma2=1.0, tol=1e-10, max_iter=20000, debug=False):
+    """Iteratively solve for the steady-state covariance matrix."""
     n = A.shape[0]
-    # スペクトル半径チェック（>=1 なら発散）
+    # check spectral radius (if >=1 diverges)
     eigs = la.eigvals(A)
     rho = np.max(np.abs(eigs))
     if debug:
@@ -40,8 +46,9 @@ def solve_stationary_cov_iter(A, sigma2=1.0, tol=1e-10, max_iter=20000, debug=Fa
         S = S_new
     raise RuntimeError("Max iterations reached without convergence")
 
+
 def phi_gaussian_atomic(A, sigma2=1.0):
-    """原子分割（各ノード単独）でのΦ"""
+    """ obtain phi at atomic partition(each node separate) """
     n = A.shape[0]
     S = solve_stationary_cov_iter(A, sigma2)
     Q = sigma2 * np.eye(n)
@@ -65,8 +72,9 @@ def phi_gaussian_atomic(A, sigma2=1.0):
     signp, logp = la.slogdet(part)
     return 0.5 * (logp - logw)
 
+
 def phi_gaussian_partition(A, parts, sigma2=1.0):
-    """任意分割 parts（index配列のリスト）でのΦ"""
+    """ obtain phi at arbitrary partition(index lists) """
     n = A.shape[0]
     S = solve_stationary_cov_iter(A, sigma2)
     Q = sigma2 * np.eye(n)
@@ -94,7 +102,7 @@ def add_edge(A, to_idx, from_idx, w):
     A[to_idx, from_idx] = w
 
 
-# --- 上：3つ独立（A:5, B:5, K:6） ---
+# --- upper part of fig.1（A:5, B:5, K:6, all independent） ---
 w = 0.9
 A_A = cycle_matrix(5, w)
 A_B = cycle_matrix(5, w)
@@ -115,12 +123,12 @@ phi_B = phi_gaussian_atomic(A_B)
 phi_K = phi_gaussian_atomic(A_K)
 phi_top_sum = phi_A + phi_B + phi_K
 
-# --- 下：統合（跨ぎエッジを追加） ---
+# --- upper part of fig.1 (add straddle edges) ---
 A_bottom = A_top.copy()
-c = 0.3 # 跨ぎエッジの結合の強さ
+c = 0.3 # weight of straddle edges
 
-# index: A 0-4, B 5-9, K 10-15 左上を始まりとして時計回りにカウント
-# ここを図1に合わせている
+# index: A 0-4, B 5-9, K 10-15   top left is the first node, clockwise
+# see fig.1
 add_edge(A_bottom, 10, 0, c)  # A1 -> K1
 add_edge(A_bottom,  6,11, c)  # K2 -> B2
 add_edge(A_bottom, 13, 7, c)  # B3 -> K4
@@ -131,14 +139,14 @@ print("A_bottom:\n", A_bottom)
 
 phi_bottom = phi_gaussian_atomic(A_bottom)
 
-# 3塊（A|B|K）分割での統合も見る
+# obtain 3-block (A|B|K) partitioning also
 parts = [list(range(0,5)), list(range(5,10)), list(range(10,16))]
 phi_top_groups = phi_gaussian_partition(A_top, parts)
 phi_bottom_groups = phi_gaussian_partition(A_bottom, parts)
 
 ln2 = math.log(2)
 
-print("=== atomic (各ノードばらばら) ===")
+print("=== atomic (each node separate) ===")
 print("phi_A:", phi_A, "nats")
 print("phi_B:", phi_B, "nats")
 print("phi_K:", phi_K, "nats")
@@ -146,6 +154,6 @@ print("top sum:", phi_top_sum, "nats =", phi_top_sum/ln2, "bits")
 print("bottom :", phi_bottom, "nats =", phi_bottom/ln2, "bits")
 print("delta  :", phi_bottom - phi_top_sum, "nats =", (phi_bottom - phi_top_sum)/ln2, "bits")
 
-print("\n=== partition (A|B|K の3塊) ===")
+print("\n=== partition (A|B|K blocks) ===")
 print("top   :", phi_top_groups, "nats")
 print("bottom:", phi_bottom_groups, "nats =", phi_bottom_groups/ln2, "bits")
